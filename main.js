@@ -2,6 +2,32 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry.js';
 import { FontLoader } from 'three/examples/jsm/loaders/FontLoader.js';
+import { EffectComposer } from 'three/examples/jsm/Addons.js';
+import { RenderPass } from 'three/examples/jsm/Addons.js';
+import { UnrealBloomPass } from 'three/examples/jsm/Addons.js';
+
+// Cube glow shader (vertex and fragment shaders)
+const vertexShader = `
+varying vec3 vNormal;
+varying vec3 vPosition;
+
+void main() {
+    vNormal = normalize(normalMatrix * normal);
+    vPosition = position;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+`;
+
+const fragmentShader = `
+varying vec3 vNormal;
+varying vec3 vPosition;
+
+void main() {
+    float intensity = pow(1.0 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.0);
+    vec3 glowColor = vec3(1.0, 1.0, 1.0); // White glow
+    gl_FragColor = vec4(glowColor * intensity, 1.0);
+}
+`;
 
 const loader = new FontLoader();
 
@@ -26,11 +52,6 @@ controls.target = new THREE.Vector3(0,0,-40)
 controls.update();
 
 // PLANE
-// const plane = new THREE.Mesh(new THREE.PlaneGeometry(200,200), new THREE.MeshPhongMaterial({ color: 0x0a7d15 }));
-// plane.rotation.x = Math.PI / 2;
-// plane.receiveShadow = true;
-// scene.add(plane);
-
 const geometry = new THREE.PlaneGeometry( 200, 200 );
 const material = new THREE.MeshBasicMaterial( {color: 0x0a7d15, side: THREE.DoubleSide} );
 const plane = new THREE.Mesh( geometry, material );
@@ -41,37 +62,12 @@ scene.add( plane );
 // HEMISPHERE LIGHT
 scene.add(new THREE.AmbientLight(0xffffff, 0.5));
 
-// POINT LIGHT
-const light1 = new THREE.PointLight(0xff6666,1,100);
-light1.castShadow = true;
-light1.shadow.mapSize.width = 4096;
-light1.shadow.mapSize.height = 4096;
-light1.position.set( 0, 0, 0 );
-scene.add(light1);
-
-const light2 = new THREE.PointLight(0x33ff33,1,100);
-light2.castShadow = true;
-light2.shadow.mapSize.width = 4096;
-light2.shadow.mapSize.height = 4096;
-scene.add(light2);
-
-
-// const geometry = new THREE.BoxGeometry( 1, 1, 1 );
-// const material = new THREE.MeshBasicMaterial( { color: 0x00ff00 } );
-// const cube = new THREE.Mesh( geometry, material );
-// scene.add( cube );
-
+// 3D ALPHABET AND NUMBER
 loader.load('node_modules/three/examples/fonts/helvetiker_regular.typeface.json', function ( font ) {
 	const alphabetGeometry = new TextGeometry( 'A', {
 		font: font,
 		size: 6,
 		depth: 2,
-		// curveSegments: 12,
-		// bevelEnabled: true,
-		// bevelThickness: 10,
-		// bevelSize: 8,
-		// bevelOffset: 0,
-		// bevelSegments: 5
 	} );
 	const alphabetMaterial = [new THREE.MeshPhongMaterial({ color: 0xef1a2d }),
 							new THREE.MeshPhongMaterial({ color: 0x5c2301 })
@@ -84,12 +80,6 @@ loader.load('node_modules/three/examples/fonts/helvetiker_regular.typeface.json'
 		font: font,
 		size: 6,
 		depth: 2,
-		// curveSegments: 12,
-		// bevelEnabled: true,
-		// bevelThickness: 10,
-		// bevelSize: 8,
-		// bevelOffset: 0,
-		// bevelSegments: 5
 	} );
 	const numberMaterial = [new THREE.MeshPhongMaterial({ color: 0x10e5d2 }),
 							new THREE.MeshPhongMaterial({ color: 0x5c2301 })
@@ -99,19 +89,44 @@ loader.load('node_modules/three/examples/fonts/helvetiker_regular.typeface.json'
 	scene.add(numberMesh)
 } );
 
-function animate() {
-    //cube.rotation.x += 0.01;
-    //cube.rotation.y += 0.01;
-	const now = Date.now() / 1000;
-	light1.position.y = 15;
-	light1.position.x = Math.cos(now) * 20;
-	light1.position.z = Math.sin(now) * 20;
+// Cube shader material
+const cubeMaterial = new THREE.ShaderMaterial({
+    vertexShader,
+    fragmentShader,
+    transparent: true,
+    blending: THREE.AdditiveBlending, // Adds a glowing effect
+});
 
-	light2.position.y = 15;
-	light2.position.x = Math.cos(now) * 20;
-	light2.position.z = Math.sin(now) * 20;
-	renderer.render( scene, camera );
-	requestAnimationFrame(animate);
+// Create the glowing cube
+const cubeGeometry = new THREE.BoxGeometry(5, 5, 5);
+const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+cube.position.set(2, 3, 0);
+scene.add(cube);
+
+// Add a point light to make the cube illuminate the scene
+const pointLight = new THREE.PointLight(0xffffff, 1, 100); // White light
+pointLight.position.copy(cube.position);
+pointLight.castShadow = true;
+pointLight.shadow.mapSize.width = 4096;
+pointLight.shadow.mapSize.height = 4096;
+scene.add(pointLight);
+
+// Optional: Add bloom for an enhanced glow
+const composer = new EffectComposer(renderer)
+const renderPass = new RenderPass(scene, camera);
+composer.addPass(renderPass);
+
+const bloomPass = new UnrealBloomPass(
+    new THREE.Vector2(window.innerWidth, window.innerHeight),
+    2.5, // Strength of bloom
+    0.4, // Radius of bloom
+    0.85 // Threshold of bloom
+);
+composer.addPass(bloomPass);
+
+function animate() {
+    requestAnimationFrame(animate);
+    composer.render(); // Use composer instead of renderer for effects
 }
 document.body.appendChild( renderer.domElement );
 animate();
