@@ -29,6 +29,90 @@ void main() {
 }
 `;
 
+const alphabetVertexShader = `
+varying vec3 vNormal;
+varying vec3 vPosition;
+
+void main() {
+    vNormal = normalize(normalMatrix * normal);
+    vPosition = (modelViewMatrix * vec4(position, 1.0)).xyz;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+`;
+
+const alphabetFragmentShader = `
+uniform vec3 ambientColor;
+uniform vec3 diffuseColor;
+uniform vec3 specularColor;
+uniform vec3 lightPosition;
+uniform float shininess;
+
+varying vec3 vNormal;
+varying vec3 vPosition;
+
+void main() {
+    // Ambient lighting
+    vec3 ambient = ambientColor * 0.369;
+
+    // Diffuse lighting
+    vec3 lightDir = normalize(lightPosition - vPosition);
+    float diff = max(dot(vNormal, lightDir), 0.0);
+    vec3 diffuse = diffuseColor * diff;
+
+    // Specular lighting (Phong model)
+    vec3 viewDir = normalize(-vPosition);
+    vec3 reflectDir = reflect(-lightDir, vNormal);
+    float spec = pow(max(dot(viewDir, reflectDir), 0.0), shininess);
+    vec3 specular = specularColor * spec;
+
+    // Final color
+    vec3 color = ambient + diffuse + specular;
+    gl_FragColor = vec4(color, 1.0);
+}
+`;
+
+const numberVertexShader = `
+varying vec3 vNormal;
+varying vec3 vPosition;
+
+void main() {
+    vNormal = normalize(normalMatrix * normal);
+    vPosition = (modelViewMatrix * vec4(position, 1.0)).xyz;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+`;
+
+const numberFragmentShader = `
+uniform vec3 ambientColor;
+uniform vec3 diffuseColor;
+uniform vec3 specularColor;
+uniform vec3 lightPosition;
+uniform float shininess;
+
+varying vec3 vNormal;
+varying vec3 vPosition;
+
+void main() {
+    // Ambient lighting
+    vec3 ambient = ambientColor * 0.369;
+
+    // Diffuse lighting
+    vec3 lightDir = normalize(lightPosition - vPosition);
+    float diff = max(dot(vNormal, lightDir), 0.0);
+    vec3 diffuse = diffuseColor * diff;
+
+    // Specular lighting (Metal-like)
+    vec3 viewDir = normalize(-vPosition);
+    vec3 reflectDir = reflect(-lightDir, vNormal);
+    float spec = pow(max(dot(viewDir, reflectDir), 0.0), shininess);
+    vec3 specular = mix(diffuseColor, specularColor, 0.5) * spec;
+
+    // Final color
+    vec3 color = ambient + diffuse + specular;
+    gl_FragColor = vec4(color, 1.0);
+}
+`;
+
 const loader = new FontLoader();
 
 const scene = new THREE.Scene();
@@ -69,9 +153,17 @@ loader.load('node_modules/three/examples/fonts/helvetiker_regular.typeface.json'
 		size: 6,
 		depth: 2,
 	} );
-	const alphabetMaterial = [new THREE.MeshPhongMaterial({ color: 0xef1a2d }),
-							new THREE.MeshPhongMaterial({ color: 0x5c2301 })
-	]
+	const alphabetMaterial = new THREE.ShaderMaterial({
+		vertexShader: alphabetVertexShader,
+		fragmentShader: alphabetFragmentShader,
+		uniforms: {
+			ambientColor: { value: new THREE.Color(0.2, 0.2, 0.2) },
+			diffuseColor: { value: new THREE.Color(0xef1a2d) },
+			specularColor: { value: new THREE.Color(1.0, 1.0, 1.0) },
+			lightPosition: { value: cube.position },
+			shininess: { value: 20.0 }
+		}
+	});
 	const alphabetMesh = new THREE.Mesh(alphabetGeometry, alphabetMaterial);
 	alphabetMesh.position.set(-15, 0, 0); // Left side of the view
 	scene.add(alphabetMesh)
@@ -81,9 +173,17 @@ loader.load('node_modules/three/examples/fonts/helvetiker_regular.typeface.json'
 		size: 6,
 		depth: 2,
 	} );
-	const numberMaterial = [new THREE.MeshPhongMaterial({ color: 0x10e5d2 }),
-							new THREE.MeshPhongMaterial({ color: 0x5c2301 })
-	]
+	const numberMaterial = new THREE.ShaderMaterial({
+		vertexShader: numberVertexShader,
+		fragmentShader: numberFragmentShader,
+		uniforms: {
+			ambientColor: { value: new THREE.Color(0.2, 0.2, 0.2) },
+			diffuseColor: { value: new THREE.Color(0x10e5d2) },
+			specularColor: { value: new THREE.Color(0x10e5d2) },
+			lightPosition: { value: cube.position },
+			shininess: { value: 50.0 }
+		}
+	});
 	const numberMesh = new THREE.Mesh(numberGeometry, numberMaterial);
 	numberMesh.position.set(15, 0, 0); // Left side of the view
 	scene.add(numberMesh)
